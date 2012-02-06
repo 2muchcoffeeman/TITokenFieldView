@@ -5,68 +5,33 @@
 //  Created by Tom Irving on 16/02/2010.
 //  Copyright 2010 Tom Irving. All rights reserved.
 //
+//  Modified by Marc Winoto for iPad Compatibility
 
 #import "TITokenFieldView.h"
 
-//==========================================================
-// - Private Additions
-//==========================================================
+#pragma mark - Private Additions Interfaces
 
 @interface TITokenFieldView ()
-@property (nonatomic, retain) NSArray * tokenTitles;
+
+@property (nonatomic, strong) NSMutableArray * tokensArray;
+-(void) initialise:(CGRect)frame;
+
 @end
 
-@interface TITokenFieldView (Private)
-- (void)processLeftoverText:(NSString *)text;
-- (void)resultsForSubstring:(NSString *)substring;
-- (void)tokenFieldResized:(TITokenField *)aTokenField;
-@end
+#pragma mark - TITokenFieldView
 
-@interface TITokenField (Private)
-- (void)updateHeight:(BOOL)scrollToTop;
-- (void)scrollForEdit:(BOOL)shouldMove;
-- (void)performButtonAction;
-- (NSArray *)getTokenTitles;
-@end
-
-@interface UIColor (Private)
-- (BOOL)ti_getRed:(CGFloat *)red green:(CGFloat *)green blue:(CGFloat *)blue alpha:(CGFloat *)alpha;
-@end
-
-@interface UIView (Private)
-- (void)setHeight:(CGFloat)height;
-- (void)setWidth:(CGFloat)width;
-- (void)setOriginY:(CGFloat)originY;
-@end
-
-//==========================================================
-// - TITokenFieldShadow
-//==========================================================
-
-@interface TITokenFieldShadow : UIView
-@end
-
-//==========================================================
-// - TITokenFieldView
-//==========================================================
-
-#pragma mark -
-#pragma mark TITokenFieldView
-#pragma mark -
 @implementation TITokenFieldView
 
 @synthesize showAlreadyTokenized;
 @synthesize delegate;
 
-@synthesize resultsTable;
-@synthesize contentView;
-@synthesize separator;
-@synthesize textFieldShadow;
-
-@synthesize sourceArray;
-@synthesize tokenTitles;
+@synthesize tokensArray;
 
 @synthesize tokenField;
+@synthesize addButton=_addButton;
+
+@synthesize popoverSelector;
+@synthesize summarise;
 
 NSString * const kTextEmpty = @" "; // Just a space
 NSString * const kTextHidden = @"`"; // This character isn't available on the iPhone (yet) so it's safe.
@@ -75,190 +40,177 @@ CGFloat const kShadowHeight = 10;
 CGFloat const kTokenFieldHeight = 42;
 CGFloat const kSeparatorHeight = 1;
 
-#pragma mark Main Shit
-- (id)initWithFrame:(CGRect)frame {
-	
-    if ((self = [super initWithFrame:frame])){
-		
-		[self setBackgroundColor:[UIColor clearColor]];
-		[self setDelaysContentTouches:NO];
-		[self setMultipleTouchEnabled:NO];
-		[self setScrollEnabled:YES];
-		
-		showAlreadyTokenized = NO;
-		
-		resultsArray = [[NSMutableArray alloc] init];
-		
-		// This view (contentView) is created for convenience, because it resizes and moves with the rest of the subviews.
-		contentView = [[UIView alloc] initWithFrame:CGRectMake(0, kTokenFieldHeight, self.frame.size.width, self.frame.size.height - kTokenFieldHeight)];
-		[contentView setBackgroundColor:[UIColor clearColor]];
-		[self addSubview:contentView];
-		[self setContentSize:CGSizeMake(self.frame.size.width, self.contentView.frame.origin.y + self.contentView.frame.size.height + 2)];
-		[contentView release];
-		
-		tokenField = [[TITokenField alloc] initWithFrame:CGRectMake(0, 0, frame.size.width, kTokenFieldHeight)];
-		[tokenField addTarget:self action:@selector(textFieldDidChange:) forControlEvents:UIControlEventEditingChanged];
-		[tokenField setBackgroundColor:[UIColor whiteColor]];
-		[tokenField setDelegate:self];
-		[self addSubview:tokenField];
-		[tokenField release];
-		
-		separator = [[UIView alloc] initWithFrame:CGRectMake(0, kTokenFieldHeight, self.frame.size.width, kSeparatorHeight)];
-		[separator setBackgroundColor:[UIColor colorWithWhite:0.7 alpha:1]];
-		[self addSubview:separator];
-		[separator release];
-		
-		resultsTable = [[UITableView alloc] initWithFrame:CGRectMake(0, kTokenFieldHeight + 1, self.frame.size.width, 10)];
-		[resultsTable setSeparatorColor:[UIColor colorWithWhite:0.85 alpha:1]];
-		[resultsTable setBackgroundColor:[UIColor colorWithRed:0.92 green:0.92 blue:0.92 alpha:1]];
-		[resultsTable setDelegate:self];
-		[resultsTable setDataSource:self];
-		[resultsTable setHidden:YES];
-		[self addSubview:resultsTable];
-		[resultsTable release];
-		
-		textFieldShadow = [[TITokenFieldShadow alloc] initWithFrame:CGRectMake(0, kTokenFieldHeight + 1, self.frame.size.width, kShadowHeight)];
-		[textFieldShadow setHidden:YES];
-		[self addSubview:textFieldShadow];
-		[textFieldShadow release];
-		
-		[self bringSubviewToFront:separator];
-		[self updateContentSize];
-	}
-	
+#pragma mark - Main Shit
+
+-(void) initialise:(CGRect)frame
+{
+    tokensArray = [[NSMutableArray alloc] init];
+    self.backgroundColor = self.superview.backgroundColor;
+    self.delaysContentTouches=NO;
+    self.multipleTouchEnabled=NO;
+    self.scrollEnabled=YES;
+    
+    showAlreadyTokenized = NO;
+    summarise = NO;
+    
+    // The tokenfield
+    tokenField = [[TITokenField alloc] initWithFrame:CGRectMake(0, 0, frame.size.width, kTokenFieldHeight)];
+    //tokenField.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleTopMargin;
+    [tokenField addTarget:self action:@selector(textFieldDidChange:) forControlEvents:UIControlEventEditingChanged];
+    [tokenField setDelegate:self];
+    [self addSubview:tokenField];
+    tokenField.backgroundColor = self.backgroundColor;
+    [self updateContentSize];
+}
+
+-(id) init
+{
+    if ((self = [super init]))
+    {
+        [self initialise:self.frame];
+	}	
+    return self;    
+}
+
+-(id) initWithCoder:(NSCoder *)aDecoder
+{
+    if ((self = [super initWithCoder:aDecoder]))
+    {
+        [self initialise:self.frame];
+	}	
     return self;
 }
 
-- (void)setFrame:(CGRect)aFrame {
-	
+- (id)initWithFrame:(CGRect)frame 
+{	
+    if ((self = [super initWithFrame:frame]))
+    {
+        [self initialise:frame];
+	}	
+    return self;
+}
+
+-(void) dealloc {
+	[self setDelegate:nil];
+}
+
+
+-(void) setFrame:(CGRect)aFrame 
+{
 	[super setFrame:aFrame];
 	
 	CGFloat width = aFrame.size.width;
 	[tokenField setWidth:width];
-	[textFieldShadow setWidth:width];
-	[separator setWidth:width];
-	[resultsTable setWidth:width];
-	[contentView setWidth:width];
-	[contentView setHeight:aFrame.size.height - kTokenFieldHeight];
 	
-	[tokenField updateHeight:YES];
+	[self updateHeight:YES];
 	[self updateContentSize];
 	
 	[self layoutSubviews];
 }
 
-- (void)setContentOffset:(CGPoint)offset {
+-(void) setContentOffset:(CGPoint)offset {
 	
 	[super setContentOffset:offset];
 	[self layoutSubviews];
 }
 
-- (void)layoutSubviews {
-	
-	CGFloat relativeFieldHeight = tokenField.frame.size.height - self.contentOffset.y;
-	[resultsTable setHeight:(self.frame.size.height - relativeFieldHeight)];
-}
 
-- (void)updateContentSize {
-	
-	// I add 1 here so it'll do that elastic scrolling thing.
-	// As a user, I like to drag a view around just for the sake of it.
-	// Hopefully other people get the same weird kick :)
-	[self setContentSize:CGSizeMake(self.frame.size.width, self.contentView.frame.origin.y + self.contentView.frame.size.height + 1)];
-}
-
-- (BOOL)canBecomeFirstResponder {
+-(BOOL) canBecomeFirstResponder {
 	return YES;
 }
 
-- (BOOL)becomeFirstResponder {
+-(BOOL) becomeFirstResponder {
 	return [tokenField becomeFirstResponder];
 }
 
-- (BOOL)resignFirstResponder {
+-(BOOL) resignFirstResponder {
 	return [tokenField resignFirstResponder];
 }
 
-#pragma mark TableView Methods
-- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
-    return 1;
+#pragma mark - Other locally declared methods
+
+-(void) setPromptText:(NSString*)text
+{
+    UILabel * label = (UILabel*)self.tokenField.leftView;
+    label.text = [text copy];
 }
 
-- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
+#pragma mark - Local methods
+// FIXME: Un efficient. If we are running this when the field is loaded, we don't need to do much!
+-(void) renderString
+{
+    // Remove all the tokens in the view
+    NSArray * temp = [NSArray arrayWithArray:tokensArray];
+	for (TIToken * token in temp) 
+        [token removeFromSuperview];
 	
-	if ([delegate respondsToSelector:@selector(tokenField:resultsTableView:heightForRowAtIndexPath:)]){
-		return [delegate tokenField:tokenField resultsTableView:tableView heightForRowAtIndexPath:indexPath];
+	NSString * untokenized = [tokensArray count]>0? ((TIToken*)[tokensArray objectAtIndex:0]).title:@"";
+    for (NSInteger i=1; i<[tokensArray count]; i++) {
+        TIToken * t = [tokensArray objectAtIndex:i];
+        untokenized = [untokenized stringByAppendingFormat:@", %@", t.title];
+    }
+	
+	[self updateHeight:YES];
+	
+    if(summarise)
+    {
+        CGSize untokSize = [untokenized sizeWithFont:kSmallTokenFont];
+        if (untokSize.width > self.frame.size.width - 120) {
+            untokenized = [NSString stringWithFormat:@"%d %@", tokensArray.count, self.summaryText];
+        }
 	}
-	
-	return 44;
+    tokenField.text = untokenized;
 }
 
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-	
-	// Hide the UITableView and shadow, then resize if there are no matches.
-	
-	if ([delegate respondsToSelector:@selector(tokenField:didFinishSearch:)]){
-		[delegate tokenField:tokenField didFinishSearch:resultsArray];
-	}
-	
-	BOOL hideTable = !resultsArray.count;
-	[resultsTable setHidden:hideTable];
-	[textFieldShadow setHidden:hideTable];
-	[tokenField scrollForEdit:!hideTable];
-	
-	UIColor * separatorColor = hideTable ? [UIColor colorWithWhite:0.7 alpha:1] : [UIColor colorWithRed:150/255 green:150/255 blue:150/255 alpha:0.4];
-	[separator setBackgroundColor:separatorColor];
-	
-	return resultsArray.count;
-	
+-(void) currentTokens:(NSSet*)tokens
+{
+    [self removeAllTokens];
+    for(id obj in tokens)
+    {
+        [self setToken:(NSString*)[obj valueForKey:@"name"]];
+    }
+    [self renderString];
 }
 
-- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-	
-	if ([delegate respondsToSelector:@selector(tokenField:resultsTableView:cellForObject:)]){
-		return [delegate tokenField:tokenField resultsTableView:tableView cellForObject:[resultsArray objectAtIndex:indexPath.row]];
-	}
-	
-    static NSString *CellIdentifier = @"ResultsCell";
-    
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:CellIdentifier];
-    if (!cell) cell = [[[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:CellIdentifier] autorelease];
-	
-	[cell.textLabel setText:[resultsArray objectAtIndex:indexPath.row]];
-	
-    return cell;
+- (void)updateContentSize {	
+    [self setContentSize:CGSizeMake(tokenField.frame.size.width, tokenField.frame.size.height) ];
 }
 
-- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-	
-	[tokenField addToken:[resultsArray objectAtIndex:indexPath.row]];
-	[tableView deselectRowAtIndexPath:indexPath animated:YES];
+#pragma mark - addButtonAction
+
+-(void) addButtonAction:(id)control
+{
+    if(!self.popoverSelector)
+    {
+        [self.tokenField becomeFirstResponder];
+    }
+    else {
+        UIButton * button = (UIButton*)control;
+        [self.popoverSelector presentPopoverFromRect:button.frame 
+                                              inView:button.superview
+                            permittedArrowDirections:UIPopoverArrowDirectionUp 
+                                            animated:YES];
+    }
 }
 
-#pragma mark TextField Methods
+#pragma mark - TextField Methods
 
 - (BOOL)textFieldShouldBeginEditing:(UITextField *)textField {
-	
-	[resultsArray removeAllObjects];
-	[resultsTable reloadData];
-	
+
     return YES;
 }
 
 - (void)textFieldDidBeginEditing:(UITextField *)textField {
 	
-	if (![textField.text isEqualToString:kTextEmpty] && ![textField.text isEqualToString:kTextHidden] && ![textField.text isEqualToString:@""]){
-		
-		NSArray * titles = [[NSArray alloc] initWithArray:tokenTitles];
-		for (NSString * title in titles) [tokenField addToken:title];
-		[titles release];
-		
+	if (![textField.text isEqualToString:kTextEmpty] && 
+        ![textField.text isEqualToString:kTextHidden] && 
+        ![textField.text isEqualToString:@""]){
+		for (TIToken * t in tokensArray) 
+            [tokenField addSubview:t];
 	}
 	
 	[tokenField setText:kTextEmpty];
-    [resultsTable reloadData];
-	
-	[tokenField updateHeight:NO];
+	[self updateHeight:NO];
 }
 
 - (BOOL)textFieldShouldEndEditing:(UITextField *)textField {
@@ -266,84 +218,97 @@ CGFloat const kSeparatorHeight = 1;
 	return YES;
 }
 
-- (void)textFieldDidEndEditing:(UITextField *)textField {
+
+-(void) textFieldDidEndEditing:(UITextField *)textField 
+{	
+    //NSArray * temp = [NSArray arrayWithArray:tokensArray];
+	for (TIToken * token in tokensArray) 
+    {
+        [token removeFromSuperview];
+    }
+	    
+	[self updateHeight:YES];
 	
-	NSArray * tokens = [[NSArray alloc] initWithArray:tokenField.tokensArray];
-	for (TIToken * token in tokens) [token removeFromSuperview];
-	[tokens release];
-	
-	[self setTokenTitles:[tokenField getTokenTitles]];
-	
-	NSString * untokenized = [tokenTitles componentsJoinedByString:@", "];
-	CGSize untokSize = [untokenized sizeWithFont:[UIFont systemFontOfSize:14]];
-	
-	[tokenField.tokensArray removeAllObjects];
-	[tokenField updateHeight:YES];
-	
-	if (untokSize.width > self.frame.size.width - 120){
-		untokenized = [NSString stringWithFormat:@"%d recipients", tokenTitles.count];
-	}
-	
-	[textField setText:untokenized];
-	
-	[textFieldShadow setHidden:YES];
-	[resultsTable setHidden:YES];
-	
+    [self renderString];
 }
 
+
+// FIXME: Fix this to make sure it is the right controller
 - (void)textFieldDidChange:(UITextField *)textField {
-	
+    
 	if ([textField.text isEqualToString:@""] || textField.text.length == 0){
 		[textField setText:kTextEmpty];
 	}
 	
-	[textFieldShadow setHidden:NO];
-	[resultsTable setHidden:NO];
-	
-	[self resultsForSubstring:textField.text];
-	
 	if ([delegate respondsToSelector:@selector(tokenFieldTextDidChange:)]){
 		[delegate tokenFieldTextDidChange:tokenField];
 	}
+    
+    if([popoverSelector.contentViewController conformsToProtocol:@protocol(TITokenFieldSearchDelegate)])
+    {
+        NSString * trimmedText = [textField.text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        id<TITokenFieldSearchDelegate> p = (id<TITokenFieldSearchDelegate>)popoverSelector.contentViewController;
+        [p modifyPredicate:trimmedText];
+    }
 }
 
-- (BOOL)textField:(UITextField *)textField shouldChangeCharactersInRange:(NSRange)range replacementString:(NSString *)string {
-	
-	if ([string isEqualToString:@""] && [textField.text isEqualToString:kTextEmpty] && tokenField.tokensArray.count){
-		
+// !!!: Tokens are created here!
+// !!!: Tokens are deleted here too!
+- (BOOL)textField:(UITextField *)textField shouldChangeCharactersInRange:(NSRange)range replacementString:(NSString *)string 
+{	
+	if ([string isEqualToString:@""] && [textField.text isEqualToString:kTextEmpty] && tokensArray.count)
+    {
 		//When the backspace is pressed, we capture it, highlight the last token, and hide the cursor.
-		
-		TIToken * tok = [tokenField.tokensArray lastObject];
-		[tok setHighlighted:YES];
-		[tokenField setText:kTextHidden];
-		[tokenField updateHeight:NO];
+		TIToken * tok = [tokensArray lastObject];
+		tok.highlighted = YES;
+		tokenField.text = kTextHidden;
+		[self updateHeight:NO];
 		
 		return NO;
 	}
 	
-	if ([textField.text isEqualToString:kTextHidden] && ![string isEqualToString:@""]){
-		// When the text is hidden, we don't want the user to be able to type anything.
-		return NO;
+	if ([textField.text isEqualToString:kTextHidden] && ![string isEqualToString:@""]) {
+        // When the text is hidden, we don't want the user to be able to type anything.
+        return NO;
 	}
 	
-	if ([textField.text	isEqualToString:kTextHidden] && [string isEqualToString:@""]){
-		
-		// When the user presses backspace and the text is hidden,
-		// we find the highlighted token, and remove it.
-		
-		for (TIToken * tok in [NSArray arrayWithArray:tokenField.tokensArray]){
-			if (tok.highlighted){
-				[tokenField removeToken:tok];
-				return NO;
-			}
-		}
-	}
+	if ([textField.text	isEqualToString:kTextHidden] && [string isEqualToString:@""]) {
+        // When the user presses backspace and the text is hidden,
+        // we find the highlighted token, and remove it.
+        NSArray * temp = [NSArray arrayWithArray:tokensArray];
+        for (TIToken * tok in temp) 
+        {
+            if (tok.highlighted) 
+            {
+                NSString * title = [tok.title copy];
+                [self removeToken:tok];
+                [delegate tokenField:tokenField removedToken:title];
+                return NO;
+            }
+        }
+    }
 	
 	if ([string isEqualToString:@","]){
 		[self processLeftoverText:textField.text];
 		return NO;
 	}
 	
+    // Add token if they enter a space.
+    // This should not be here
+    if([string isEqualToString:@" "])
+    {        
+        [self processLeftoverText:textField.text];
+        return NO;
+    }
+    
+    CGPoint point = tokenField.cursorLocation;
+    CGRect frame = textField.frame;
+    CGRect pof = CGRectMake(point.x, point.y, 0.0, frame.size.height);
+    
+    [popoverSelector presentPopoverFromRect:pof
+                                     inView:self
+                   permittedArrowDirections:UIPopoverArrowDirectionUp
+                                   animated:YES];
 	return YES;
 }
 
@@ -358,674 +323,269 @@ CGFloat const kSeparatorHeight = 1;
 	return YES;
 }
 
-- (void)processLeftoverText:(NSString *)text {
-	
-	if (![text isEqualToString:kTextEmpty] && ![text isEqualToString:kTextHidden] && 
-		[[text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] length] != 0){
-		
-		NSUInteger loc = [[text substringWithRange:NSMakeRange(0, 1)] isEqualToString:@" "] ? 1 : 0;
-		[tokenField addToken:[text substringWithRange:NSMakeRange(loc, text.length - 1)]];
+//Called when some sort of delimiter character is typed
+- (void)processLeftoverText:(NSString *)text
+{
+    [popoverSelector dismissPopoverAnimated:YES];
+    NSString * trimmedText = [text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        
+	if (![trimmedText isEqualToString:kTextEmpty] && ![trimmedText isEqualToString:kTextHidden] && 
+		[[trimmedText stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] length] != 0)
+    {
+        //NSUInteger loc = [[text substringWithRange:NSMakeRange(0, 1)] isEqualToString:@" "] ? 1 : 0;
+        //[tokenField addToken:[text substringWithRange:NSMakeRange(loc, text.length - 1)]];
+        
+        [self addToken:trimmedText];
 	}
 }
 
 - (void)tokenFieldResized:(TITokenField *)aTokenField {
-	
-	[self setContentSize:CGSizeMake(self.frame.size.width, self.contentView.frame.origin.y + self.contentView.frame.size.height + 2)];
-	
+	//[self setContentSize:CGSizeMake(self.frame.size.width, self.contentView.frame.origin.y + self.contentView.frame.size.height + 2)];
+	[self updateContentSize];
 	if ([delegate respondsToSelector:@selector(tokenField:didChangeToFrame:)]){
 		[delegate tokenField:aTokenField didChangeToFrame:aTokenField.frame];
 	}
 }
 
-#pragma mark Results Methods
-- (void)resultsForSubstring:(NSString *)substring {
-	
-	// The brute force searching method.
-	// Takes the input string and compares it against everything in the source array.
-	// If the source is massive, this could take some time.
-	// You could always subclass and override this if needed or do it on a background thread.
-	// GCD would be great for that.
-	
-	[resultsArray removeAllObjects];
-	[resultsTable reloadData];
-	
-	NSUInteger loc = [[substring substringWithRange:NSMakeRange(0, 1)] isEqualToString:@" "] ? 1 : 0;
-	NSString * typedString = [[substring substringWithRange:NSMakeRange(loc, substring.length - 1)] lowercaseString];
-	
-	NSArray * source = [[NSArray alloc] initWithArray:sourceArray];
-	
-	for (NSString * sourceObject in source){
-		
-		NSString * query = [sourceObject lowercaseString];
-		
-		if ([query rangeOfString:typedString].location != NSNotFound){
-			
-			if (showAlreadyTokenized){
-				if (![resultsArray containsObject:sourceObject]){
-					[resultsArray addObject:sourceObject];
-				}
-			}
-			else
-			{
-				BOOL shouldAdd = YES;
-				
-				NSArray * tokens = [[NSArray alloc] initWithArray:tokenField.tokensArray];
-				
-				for (TIToken * token in tokens){
-					if ([[token.title lowercaseString] rangeOfString:query].location != NSNotFound){
-						shouldAdd = NO;
-						break;
-					}
-				}
-				
-				[tokens release];
-				
-				if (shouldAdd){
-					if (![resultsArray containsObject:sourceObject]){
-						[resultsArray addObject:sourceObject];
-					}
-				}
-			}
-		}
-	}
-	
-	[source release];
-	
-	[resultsArray sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
-	[resultsTable reloadData];
-}
-
 - (NSString *)description {
-	return [NSString stringWithFormat:@"<TITokenFieldView %p 'Token count: %d'>", self, tokenTitles.count];
+	return [NSString stringWithFormat:@"<TITokenFieldView %p 'Token count: %d'>", self, [tokensArray count]];
 }
 
-- (void)dealloc {
-	[self setDelegate:nil];
-	[tokenTitles release];
-	[resultsArray release];
-	[sourceArray release];
-	[super dealloc];
+#pragma mark - UIPopoverControllerDelegate
+
+-(void) popoverControllerDidDismissPopover:(UIPopoverController *)popoverController
+{
+    
 }
 
-@end
-#pragma mark -
-#pragma mark TITokenField
-#pragma mark -
-//==========================================================
-// - TITokenField
-//==========================================================
-
-@implementation TITokenField
-@synthesize tokensArray;
-@synthesize numberOfLines;
-@synthesize addButton;
-@synthesize addButtonSelector;
-@synthesize addButtonTarget;
-
-- (id)initWithFrame:(CGRect)frame {
-	
-    if ((self = [super initWithFrame:frame])){
-		
-		[self setBorderStyle:UITextBorderStyleNone];
-		[self setTextColor:[UIColor blackColor]];
-		[self setFont:[UIFont systemFontOfSize:14]];
-		[self setBackgroundColor:[UIColor whiteColor]];
-		[self setAutocorrectionType:UITextAutocorrectionTypeNo];
-		[self setAutocapitalizationType:UITextAutocapitalizationTypeNone];
-		[self setTextAlignment:UITextAlignmentLeft];
-		[self setKeyboardType:UIKeyboardTypeDefault];
-		[self setReturnKeyType:UIReturnKeyDefault];
-		[self setClearsOnBeginEditing:NO];
-		[self setLeftViewMode:UITextFieldViewModeNever];
-		
-		UIButton * button = [UIButton buttonWithType:UIButtonTypeContactAdd];
-		
-		CGRect newFrame = button.frame;
-		newFrame.origin = CGPointMake(self.frame.size.width - button.frame.size.width - 6, 
-									  self.frame.size.height + self.frame.origin.y - button.frame.size.height - 6);
-		[button setFrame:newFrame];
-		[button setUserInteractionEnabled:YES];
-		[button setHidden:YES];
-		[button addTarget:self action:@selector(performButtonAction) forControlEvents:UIControlEventTouchUpInside];
-		[self setAddButton:button];
-		[self addSubview:addButton];
-		
-		[self setAddButtonSelector:nil];
-		[self setAddButtonTarget:nil];
-		
-		// We don't just set a leftside view
-		// as it centers vertically on resize.
-		// This is not something we want,
-		// so instead, we add a subview.
-		[self setPromptText:@"To:"];
-		[self setText:kTextEmpty];
-		
-		tokensArray = [[NSMutableArray alloc] init];
-    }
-	
-    return self;
+- (BOOL)popoverControllerShouldDismissPopover:(UIPopoverController *)popoverController
+{
+    return YES;
 }
 
-#pragma mark Token Handlers
-- (void)addToken:(NSString *)title {
-	
-	if (title){
-		
-		if (![self isFirstResponder]) [self becomeFirstResponder];
-		
+#pragma mark - custom setters
+
+-(void) setAddButton:(UIButton *)addButton
+{
+    _addButton = addButton;
+    [_addButton addTarget:self action:@selector(addButtonAction:) forControlEvents:UIControlEventTouchUpInside];
+}
+
+
+#pragma mark - methods that used to be in the TITokenField
+
+// ???: kTextEmpty
+-(void) setToken:(NSString *)title
+{
+    if (title)
+    {
 		TIToken * token = [[TIToken alloc] initWithTitle:title];
 		[token setDelegate:self];
-		
-		[self addSubview:token];
 		[tokensArray addObject:token];
-		[token release];
-		
-		[self updateHeight:NO];
-		[self setText:kTextEmpty];
 	}
 }
 
-- (void)removeToken:(TIToken *)token {
-	
-	[token removeFromSuperview];
+- (void)addToken:(NSString *)title
+{	
+    if (title)
+    {
+        if([delegate tokenField:tokenField shouldAddToken:title])
+        {
+            TIToken * token = [[TIToken alloc] initWithTitle:title];
+            [token setDelegate:self];
+            [tokensArray addObject:token];
+         
+            [delegate tokenField:tokenField addedToken:title];
+            
+            if ([tokenField isFirstResponder]) {
+                [tokenField addSubview:token];
+                [self updateHeight:NO];
+                [tokenField setText:kTextEmpty];
+            }
+            else
+                [self renderString];//tokenField.text = [tokenField.text stringByAppendingFormat:@", %@", title];
+        }
+    }
+}
+
+-(void) removeToken:(TIToken *)token
+{
+    [token removeFromSuperview];
 	[tokensArray removeObject:token];
-	
-	[self setText:kTextEmpty];
+	tokenField.text = kTextEmpty;
 	[self updateHeight:NO];
 }
 
-- (void)tokenGotFocus:(TIToken *)token {
-	
-	NSArray * tokens = [[NSArray alloc] initWithArray:tokensArray];
-	for (TIToken * tok in tokens){
-		if (tok != token) [tok setHighlighted:NO];
-	}
-	
-	[tokens release];
-	
-	if (![self isFirstResponder]) [self becomeFirstResponder];
-	
-	[self setText:kTextHidden];
+-(void) removeAllTokens
+{
+    NSArray * temp = [NSArray arrayWithArray:tokensArray];
+    for(TIToken * tok in temp)
+        [self removeToken:tok];
 }
 
-- (CGFloat)layoutTokens {
-	
+- (CGFloat)layoutTokens 
+{	
 	// Adapted from Joe Hewitt's Three20 layout method.
-	
-	CGFloat fontHeight = (self.font.ascender - self.font.descender) + 1;
-	CGFloat lineHeight = fontHeight + 15;
+	CGFloat fontHeight = (tokenField.font.ascender - tokenField.font.descender) + 1;
+	//CGFloat lineHeight = fontHeight + 15;
 	CGFloat topMargin = floor(fontHeight / 1.75);
-	CGFloat leftMargin = [self viewWithTag:123] ? [self viewWithTag:123].frame.size.width + 12 : 8;
-	CGFloat rightMargin = 16;
-	CGFloat rightMarginWithButton = addButton.hidden ? 8 : 46;
-	CGFloat initialPadding = 8;
+	CGFloat leftMargin = 8;//self.leftView ? self.leftView.frame.size.width + 12 : 8;
+	//CGFloat rightMargin = 16;
+	//CGFloat rightMarginWithButton = self.rightView.hidden ? 8 : self.rightView.frame.size.width+12;
+	//CGFloat initialPadding = leftMargin;
 	CGFloat tokenPadding = 4;
 	
-	numberOfLines = 1;
-	cursorLocation.x = leftMargin;
-	cursorLocation.y = topMargin - 1;
+	tokenField.numberOfLines = 1;
+	CGFloat cursorLocationX = leftMargin;//tokenField.cursorLocation.x = leftMargin;
+	CGFloat cursorLocationY = topMargin-1;//tokenField.cursorLocation.y = topMargin - 1;
 	
 	NSArray * tokens = [[NSArray alloc] initWithArray:tokensArray];
 	
-	for (TIToken * token in tokens){
-		
-		CGFloat lineWidth = cursorLocation.x + token.frame.size.width + rightMargin;
-		
-		if (lineWidth >= self.frame.size.width){
-			
-			numberOfLines++;
-			cursorLocation.x = leftMargin;
-			
-			if (numberOfLines > 1) cursorLocation.x = initialPadding;
-			cursorLocation.y += lineHeight;
-		}
-		
-		CGRect oldFrame = CGRectMake(token.frame.origin.x, token.frame.origin.y, token.frame.size.width, token.frame.size.height);
-		CGRect newFrame = CGRectMake(cursorLocation.x, cursorLocation.y, token.frame.size.width, token.frame.size.height);
-		
-		if (!CGRectEqualToRect(oldFrame, newFrame)){
-			
-			[token setFrame:newFrame];
-			[token setAlpha:0.6];
-			
-			[UIView animateWithDuration:0.3 animations:^{[token setAlpha:1];}];
-		}
-		
-		cursorLocation.x += token.frame.size.width + tokenPadding;
-		
+    if(tokenField.isFirstResponder)
+    {
+        for (TIToken * token in tokens)
+        {
+            /*
+             CGFloat lineWidth = cursorLocation.x + token.frame.size.width + rightMargin;
+             if (lineWidth >= self.frame.size.width)
+             {
+             numberOfLines++;
+             cursorLocation.x = leftMargin;
+             
+             if (numberOfLines > 1)
+             cursorLocation.x = initialPadding;
+             cursorLocation.y += lineHeight;
+             }
+             */
+            CGRect oldFrame = CGRectMake(token.frame.origin.x, token.frame.origin.y, token.frame.size.width, token.frame.size.height);
+            CGRect newFrame = CGRectMake(cursorLocationX, cursorLocationY, token.frame.size.width, token.frame.size.height);
+            
+            if (!CGRectEqualToRect(oldFrame, newFrame)) {
+                [token setFrame:newFrame];
+                [token setAlpha:0.6];
+                [UIView animateWithDuration:0.3 animations:^{[token setAlpha:1];}];
+            }
+            
+            cursorLocationX += token.frame.size.width + tokenPadding;
+        }
 	}
-	
-	[tokens release];
-	
-	CGFloat leftoverWidth = self.frame.size.width - (cursorLocation.x + rightMarginWithButton);
-	
-	if (leftoverWidth < 50){
-		
-		numberOfLines++;
-		cursorLocation.x = leftMargin;
-		
-		if (numberOfLines > 1) cursorLocation.x = initialPadding;
-		cursorLocation.y += lineHeight;
-	}
-	
-	return cursorLocation.y + fontHeight + topMargin + 5;
+    /*
+     CGFloat leftoverWidth = self.frame.size.width - (cursorLocation.x + rightMarginWithButton);
+     if (leftoverWidth < 50)
+     {
+     numberOfLines++;
+     cursorLocation.x = leftMargin;
+     
+     if (numberOfLines > 1) cursorLocation.x = initialPadding;
+     cursorLocation.y += lineHeight;
+     }
+     */
+    
+	CGFloat cl = round(cursorLocationY + fontHeight + topMargin + 5);
+    
+    if(cursorLocationX+160 > self.frame.size.width)
+        tokenField.frame = CGRectMake(tokenField.frame.origin.x, tokenField.frame.origin.y, cursorLocationX+160, tokenField.frame.size.height);
+    else if(cursorLocationX+160 < self.frame.size.width)
+        tokenField.frame = CGRectMake(tokenField.frame.origin.x, tokenField.frame.origin.y, self.frame.size.width, tokenField.frame.size.height);
+    
+    
+    tokenField.cursorLocation = CGPointMake(cursorLocationX, cursorLocationY);
+    [self setContentSize:CGSizeMake(tokenField.frame.size.width, tokenField.frame.size.height)];
+    return cl;
 }
 
-#pragma mark View Handlers
+#pragma mark - Previously Private Methods
 
 typedef void (^AnimationBlock)();
 
 - (void)updateHeight:(BOOL)scrollToTop {
 	
-	CGFloat previousHeight = self.frame.size.height;
+	CGFloat previousHeight = tokenField.frame.size.height;
 	CGFloat newHeight = [self layoutTokens];
 	
-	TITokenFieldView * parentView = (TITokenFieldView *)self.superview;
-	
-	if (previousHeight && previousHeight != newHeight){
-		
+	if (previousHeight && previousHeight != newHeight)
+    {
 		// Animating this seems to invoke the triple-tap-delete-key-loop-problem-thing™
 		// No idea why, but for now, obviously we won't animate this stuff.
 		
 		AnimationBlock animationBlock = ^{
-			[parentView.separator setOriginY:newHeight];
-			[parentView.textFieldShadow setOriginY:newHeight];
-			[parentView.resultsTable setOriginY:newHeight + 1];
-			[parentView.contentView setOriginY:newHeight];
 			[self setHeight:newHeight];
 		};
 		
-		if (previousHeight < newHeight){
+		if (previousHeight < newHeight)
 			[UIView animateWithDuration:0.3 animations:^{animationBlock();}];
-		}
 		else
-		{
 			animationBlock();
-		}
 		
-		[parentView tokenFieldResized:self];
+		[self tokenFieldResized:tokenField];
 	}
 	
-	[addButton setFrame:CGRectMake(self.frame.size.width - addButton.frame.size.width - 6, 
-								   self.frame.size.height + self.frame.origin.y - addButton.frame.size.height - 6, 
-								   addButton.frame.size.width, 
-								   addButton.frame.size.height)];
-	
-	if (scrollToTop) [parentView setContentOffset:CGPointMake(0, 0) animated:YES];
+	if (scrollToTop) 
+        [self setContentOffset:CGPointMake(0, 0) animated:YES];
 }
 
-- (void)scrollForEdit:(BOOL)shouldMove {
-	
+- (void)scrollForEdit:(BOOL)shouldMove
+{
 	TITokenFieldView * parentView = (TITokenFieldView *)self.superview;
-	
+    
 	[parentView setScrollsToTop:!shouldMove];
 	[parentView setScrollEnabled:!shouldMove];
-	
-	CGFloat offset = numberOfLines == 1 || !shouldMove ? 0 : (self.frame.size.height - kTokenFieldHeight) + 1;
+    
+	CGFloat offset = tokenField.numberOfLines == 1 || !shouldMove ? 0 : (self.frame.size.height - kTokenFieldHeight) + 1;
 	[parentView setContentOffset:CGPointMake(0, self.frame.origin.y + offset) animated:YES];
 }
 
-#pragma mark Other
-- (NSArray *)getTokenTitles {
-	
-	NSMutableArray * titles = [[NSMutableArray alloc] init];
-	
-	NSArray * tokens = [[NSArray alloc] initWithArray:tokensArray];
-	for (TIToken * token in tokens) [titles addObject:token.title];
-	[tokens release];
-	
-	return [titles autorelease];
-}
 
-- (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
-	
-	UITouch * touch = [[event allTouches] anyObject];
-	CGPoint loc = [touch locationInView:self];
-	
-	if (CGRectContainsPoint(addButton.frame, loc) && addButtonSelector && addButtonTarget){
-		// Very hacky method to get the button to respond.
-		[self performButtonAction];
-	}
-	
-	NSArray * tokens = [[NSArray alloc] initWithArray:tokensArray];
-	for (TIToken * token in tokens) [token setHighlighted:NO];
-	[tokens release];
-	
-	if ([self.text isEqualToString:kTextHidden]) [self setText:kTextEmpty];
-	
-	[super touchesBegan:touches withEvent:event];
-}
+#pragma mark - TITokenDelegate
 
-- (void)setPromptText:(NSString *)aText {
-	
-	[[self viewWithTag:123] removeFromSuperview];
-	
-	CGSize titleSize = [aText sizeWithFont:[UIFont systemFontOfSize:17]];
-	UILabel * label = [[UILabel alloc] initWithFrame:CGRectMake(8, 11, titleSize.width , titleSize.height)];
-	[label setTag:123];
-	[label setText:aText];
-	[label setFont:[UIFont systemFontOfSize:15]];
-	[label setTextColor:[UIColor colorWithWhite:0.5 alpha:1]];
-	[label sizeToFit];
-	[self addSubview:label];
-	[label release];
-	
-	[self layoutTokens];
-}
+//-(void) tokenLostFocus:(TIToken *)token
 
-- (void)setAddButtonAction:(SEL)action target:(id)sender {
-	
-	[self setAddButtonSelector:action];
-	[self setAddButtonTarget:sender];
-	
-	// Add button only appears if you don't pass nil.
-	// Add button will then hide if you do pass nil.
-	[addButton setHidden:(!action || !sender)];
-}
-
-- (void)performButtonAction {
-	
-	if (!self.editing) [self becomeFirstResponder];	
-	[addButtonTarget performSelector:addButtonSelector];
-}
-
-- (CGRect)textRectForBounds:(CGRect)bounds {
-	
-	if ([self.text isEqualToString:kTextHidden]) return CGRectMake(0, -20, 0, 0);
-	
-	CGRect frame = CGRectOffset(bounds, cursorLocation.x, cursorLocation.y + 3);
-	frame.size.width -= cursorLocation.x + (addButton.hidden ? 0 : 24) + 8;
-	return frame;
-}
-
-- (CGRect)editingRectForBounds:(CGRect)bounds {
-	return [self textRectForBounds:bounds];
-}
-
-- (CGRect)placeholderRectForBounds:(CGRect)bounds {
-	return [self textRectForBounds:bounds];
-}
-
-- (NSString *)description {
-	return [NSString stringWithFormat:@"<TITokenField %p 'Prompt: %@'>", self, ((UILabel *)[self viewWithTag:123]).text];
-}
-
-- (void)dealloc {
-	[self setDelegate:nil];
-	[addButton release];
-	[tokensArray release];
-    [super dealloc];
-}
-#pragma mark -
-#pragma mark TIToken
-#pragma mark -
-
-@end
-
-//==========================================================
-// - TIToken
-//==========================================================
-
-#define kTokenTitleFont [UIFont systemFontOfSize:14]
-
-@implementation TIToken
-@synthesize highlighted;
-@synthesize title;
-@synthesize delegate;
-@synthesize croppedTitle;
-@synthesize tintColor;
-
-- (id)initWithTitle:(NSString *)aTitle {
-	
-	if ((self = [super init])){
-		
-		title = [aTitle copy];
-		croppedTitle = [(aTitle.length > 24 ? [[aTitle substringToIndex:24] stringByAppendingString:@"..."] : aTitle) copy];
-		
-		tintColor = [[UIColor colorWithRed:0.367 green:0.406 blue:0.973 alpha:1] retain];
-		//tintColor = [[UIColor grayColor] retain];
-		
-		CGSize tokenSize = [croppedTitle sizeWithFont:kTokenTitleFont];
-		
-		//We lay the tokens out all at once, so it doesn't matter what the X,Y coords are.
-		[self setFrame:CGRectMake(0, 0, tokenSize.width + 17, tokenSize.height + 8)];
-		[self setBackgroundColor:[UIColor clearColor]];
-		
-		UILongPressGestureRecognizer * longPressRecognizer = [[UILongPressGestureRecognizer alloc] initWithTarget:self 
-																										   action:@selector(tokenWasPressed:)];
-		[longPressRecognizer setMinimumPressDuration:0];
-		[self addGestureRecognizer:longPressRecognizer];
-		[longPressRecognizer release];
-	}
-	
-	return self;
-}
-
-- (void)drawRect:(CGRect)rect {
-	
-	CGContextRef context = UIGraphicsGetCurrentContext();
-	
-	CGSize titleSize = [croppedTitle sizeWithFont:kTokenTitleFont];
-	
-	CGRect bounds = CGRectMake(0, 0, titleSize.width + 17, titleSize.height + 5);
-	CGRect textBounds = bounds;
-	textBounds.origin.x = (bounds.size.width - titleSize.width) / 2;
-	textBounds.origin.y += 4;
-	
-	CGFloat arcValue = (bounds.size.height / 2) + 1;
-	
-	CGColorSpaceRef colorspace = CGColorSpaceCreateDeviceRGB();
-	CGPoint endPoint = CGPointMake(1, self.bounds.size.height + 10);
-	
-	// Draw the outline.
-	CGContextSaveGState(context);
-	CGContextBeginPath(context);
-	CGContextAddArc(context, arcValue, arcValue, arcValue, (M_PI / 2), (3 * M_PI / 2), NO);
-	CGContextAddArc(context, bounds.size.width - arcValue, arcValue, arcValue, 3 * M_PI / 2, M_PI / 2, NO);
-	CGContextClosePath(context);
-	
-	CGFloat red = 1;
-	CGFloat green = 1;
-	CGFloat blue = 1;
-	CGFloat alpha = 1;
-	[tintColor ti_getRed:&red green:&green blue:&blue alpha:&alpha];
-	
-	if (highlighted){
-        // highlighted outline color
-		CGContextSetFillColor(context, (CGFloat[8]){red, green, blue, 1});
-		CGContextFillPath(context);
-		CGContextRestoreGState(context);
-	}
-	else
-	{
-		CGContextClip(context);
-		CGFloat locations[2] = {0, 0.95};
-        // unhighlighted outline color
-		CGFloat components[8] = {red + .2, green +.2, blue +.2, alpha, red, green, blue, alpha};
-		CGGradientRef gradient = CGGradientCreateWithColorComponents(colorspace, components, locations, 2);
-		CGContextDrawLinearGradient(context, gradient, CGPointZero, endPoint, 0);
-		CGGradientRelease(gradient);
-		CGContextRestoreGState(context);
-	}
+//???: This used to copy the tokens
+- (void)tokenGotFocus:(TIToken *)token 
+{	
+	//NSArray * tokens = [[NSArray alloc] initWithArray:tokensArray];
+	for (TIToken * tok in tokensArray)
+		if (tok != token)
+            [tok setHighlighted:NO];
     
-    // Draw a white background so we can use alpha to lighten the inner gradient
-    CGContextSaveGState(context);
-	CGContextBeginPath(context);
-	CGContextAddArc(context, arcValue, arcValue, (bounds.size.height / 2), (M_PI / 2) , (3 * M_PI / 2), NO);
-	CGContextAddArc(context, bounds.size.width - arcValue, arcValue, arcValue - 1, (3 * M_PI / 2), (M_PI / 2), NO);
-	CGContextClosePath(context);
-    CGContextSetFillColor(context, (CGFloat[8]){1, 1, 1, 1});
-    CGContextFillPath(context);
-    CGContextRestoreGState(context);
-	
-	// Draw the inner gradient.
-	CGContextSaveGState(context);
-	CGContextBeginPath(context);
-	CGContextAddArc(context, arcValue, arcValue, (bounds.size.height / 2), (M_PI / 2) , (3 * M_PI / 2), NO);
-	CGContextAddArc(context, bounds.size.width - arcValue, arcValue, arcValue - 1, (3 * M_PI / 2), (M_PI / 2), NO);
-	CGContextClosePath(context);
-	
-	CGContextClip(context);
-	
-	CGFloat locations[2] = {0, highlighted ? 0.8 : 0.4};
-    CGFloat highlightedComp[8] = {red, green, blue, .6, red, green, blue, 1};
-    CGFloat nonHighlightedComp[8] = {red, green, blue, .2, red, green, blue, .4};
-	 
-	CGGradientRef gradient = CGGradientCreateWithColorComponents (colorspace, highlighted ? highlightedComp : nonHighlightedComp, locations, 2);
-	CGContextDrawLinearGradient(context, gradient, CGPointZero, endPoint, 0);
-	CGGradientRelease(gradient);
-	CGColorSpaceRelease(colorspace);
-	
-	[(highlighted ? [UIColor whiteColor] : [UIColor blackColor]) set];
-	[croppedTitle drawInRect:textBounds withFont:kTokenTitleFont];
-	
-	CGContextRestoreGState(context);
+	if (!tokenField.isFirstResponder)
+        [tokenField becomeFirstResponder];
+    
+	tokenField.text = kTextHidden;
 }
 
-- (void)tokenWasPressed:(UIGestureRecognizer *)gestureRecognizer {
-	
-	if (gestureRecognizer.state == UIGestureRecognizerStateChanged || gestureRecognizer.state == UIGestureRecognizerStateBegan){
-		
-		highlighted = CGRectContainsPoint(self.bounds, [gestureRecognizer locationInView:self]);
-		[self setNeedsDisplay];
-	}
-	
-	if (gestureRecognizer.state == UIGestureRecognizerStateEnded) [self setHighlighted:highlighted];
+-(void) deselectAll
+{
+    for (TIToken * token in tokensArray) 
+        [token setHighlighted:NO];
+
 }
 
-- (void)setHighlighted:(BOOL)flag {
-	
-	if (highlighted != flag){
-		highlighted = flag;
-		[self setNeedsDisplay];
-	}
-	
-	if (flag && [delegate respondsToSelector:@selector(tokenGotFocus:)]){
-		[delegate tokenGotFocus:self];
-	}
-	
-	if (!flag && [delegate respondsToSelector:@selector(tokenLostFocus:)]){
-		[delegate tokenLostFocus:self];
-	}
-}
 
-- (void)setTintColor:(UIColor *)newTintColor {
-	
-	if (!newTintColor) newTintColor = [UIColor colorWithRed:0.867 green:0.906 blue:0.973 alpha:1];
-	
-	[newTintColor retain];
-	[tintColor release];
-	tintColor = newTintColor;
-	
-	[self setNeedsDisplay];
-}
-
-- (NSString *)description {
-	return [NSString stringWithFormat:@"<TIToken %p '%@'>", self, title];
-}
-
-- (void)dealloc {
-	[self setDelegate:nil];
-	[croppedTitle release];
-	[title release];
-	[tintColor release];
-    [super dealloc];
-}
-
-@end
-#pragma mark -
-#pragma mark TITokenFieldShadow
-#pragma mark -
-//==========================================================
-// - TITokenFieldShadow
-//==========================================================
-
-@implementation TITokenFieldShadow
-
-- (id)initWithFrame:(CGRect)frame {
-	
-    if ((self = [super initWithFrame:frame])){
-		[self setBackgroundColor:[UIColor clearColor]];
+-(UIView *)hitTest:(CGPoint)point withEvent:(UIEvent*)event {
+    UIView *hitView = [super hitTest:point withEvent:event];
+    
+    if([hitView class] == [TITokenField class]) {
+        [(TITokenField *) hitView handleTap:point];
+        [self deselectAll];
+        return self;
+    } 
+    else if([hitView class] == [TIToken class]) {
+        [(TIToken *) hitView handleTap:point];
+        //[tokenField handleTap:point];
+        return self;
     }
-	
-    return self;
+    else {
+        NSLog(@"HitView Failed: %@", [hitView.class description]);
+    }
+    
+    return hitView;    
 }
 
-
-- (void)drawRect:(CGRect)rect {
-	
-	CGContextRef context = UIGraphicsGetCurrentContext();
-	CGFloat components[8] = {0, 0, 0, 0.23, 0, 0, 0, 0};
-	
-	CGColorSpaceRef space = CGBitmapContextGetColorSpace(context);
-	CGGradientRef gradient = CGGradientCreateWithColorComponents(space, components, nil, 2);
-	
-	CGPoint finish = CGPointMake(rect.origin.x, rect.origin.y + rect.size.height);
-	CGContextDrawLinearGradient(context, gradient, rect.origin, finish, kCGGradientDrawsAfterEndLocation);
-	
-	CGGradientRelease(gradient);
-}
-
-@end
-
-#pragma mark -
-#pragma mark Private Additions
-#pragma mark -
-//==========================================================
-// - Private Additions
-//==========================================================
-
-@implementation UIColor (Private)
-
-- (BOOL)ti_getRed:(CGFloat *)red green:(CGFloat *)green blue:(CGFloat *)blue alpha:(CGFloat *)alpha {
-	
-	CGColorSpaceModel colorSpaceModel = CGColorSpaceGetModel(CGColorGetColorSpace(self.CGColor));
-	const CGFloat * components = CGColorGetComponents(self.CGColor);
-	
-	if (colorSpaceModel == kCGColorSpaceModelMonochrome){
-		
-		if (red) *red = components[0];
-		if (green) *green = components[0];
-		if (blue) *blue = components[0];
-		if (alpha) *alpha = components[1];
-		return YES;
-	}
-	
-	if (colorSpaceModel == kCGColorSpaceModelRGB){
-		
-		if (red) *red = components[0];
-		if (green) *green = components[1];
-		if (blue) *blue = components[2];
-		if (alpha) *alpha = components[3];
-		return YES;
-	}
-	
-	return NO;
-}
-
-@end
-
-@implementation UIView (Private)
-
-- (void)setHeight:(CGFloat)height {
-	
-	CGRect newFrame = self.frame;
-	newFrame.size.height = height;
-	[self setFrame:newFrame];
-}
-
-- (void)setWidth:(CGFloat)width {
-	
-	CGRect newFrame = self.frame;
-	newFrame.size.width = width;
-	[self setFrame:newFrame];
-}
-
-- (void)setOriginY:(CGFloat)originY {
-	
-	CGRect newFrame = self.frame;
-	newFrame.origin.y = originY;
-	[self setFrame:newFrame];
+-(void) backgroundColor:(UIColor*)color
+{
+    super.backgroundColor = color;
+    tokenField.backgroundColor = color;
 }
 
 @end

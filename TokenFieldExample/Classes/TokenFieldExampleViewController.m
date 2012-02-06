@@ -23,7 +23,8 @@
 	tokenFieldView = [[TITokenFieldView alloc] initWithFrame:self.view.bounds];
 	[tokenFieldView setDelegate:self];
 	[tokenFieldView setSourceArray:[Names listOfNames]];
-	[tokenFieldView.tokenField setAddButtonAction:@selector(showContactsPicker) target:self];
+	
+    [tokenFieldView.tokenField setAddButtonAction:@selector(showContactsPicker) target:self];
 	
 	messageView = [[UITextView alloc] initWithFrame:tokenFieldView.contentView.bounds];
 	[messageView setScrollEnabled:NO];
@@ -32,10 +33,8 @@
 	[messageView setFont:[UIFont systemFontOfSize:15]];
 	[messageView setText:@"Some message. The whole view resizes as you type, not just the text view."];
 	[tokenFieldView.contentView addSubview:messageView];
-	[messageView release];
 	
 	[self.view addSubview:tokenFieldView];
-	[tokenFieldView release];
 	
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardWillShow:) name:UIKeyboardWillShowNotification object:nil];
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardWillHide:) name:UIKeyboardWillHideNotification object:nil];

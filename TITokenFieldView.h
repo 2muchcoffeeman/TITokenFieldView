@@ -27,121 +27,77 @@
 //
 
 #import <UIKit/UIKit.h>
+#import "TITokenFieldShadow.h"
+#import "TITokenField.h"
+#import "TIToken.h"
+#import "UIView+TITokenUIView.h"
+#import "UIColor+TITokenUIColor.h"
+#import "TITokenFieldSearchDelegate.h"
+
+extern NSString * const kTextEmpty;
+extern NSString * const kTextHidden;
+
+extern CGFloat const kShadowHeight;
+extern CGFloat const kTokenFieldHeight;
+extern CGFloat const kSeparatorHeight;
+
+#pragma mark - Delegate Methods
 
 @class TITokenField, TIToken, TITokenFieldShadow;
-
-//==========================================================
-// - Delegate Methods
-//==========================================================
-
 @protocol TITokenFieldViewDelegate <UIScrollViewDelegate>
-@optional
-- (BOOL)tokenFieldShouldReturn:(TITokenField *)tokenField;
+@required
+// A token was added, tell the delegate
+-(BOOL) tokenField:(TITokenField*)tokenField shouldAddToken:(NSString*)token;
+-(void) tokenField:(TITokenField*)tokenField addedToken:(NSString*)token;
+-(void) tokenField:(TITokenField*)tokenField removedToken:(NSString*)token;
 
+//-(void) tokenField:(TITokenField*)tokenField removedToken:(NSString*)token representingObject:(id)object;
+// A new token was created. Tell the delegate and expect an object that represents the object to be created
+@optional
+
+- (BOOL)tokenFieldShouldReturn:(TITokenField *)tokenField;
 - (void)tokenField:(TITokenField *)tokenField didChangeToFrame:(CGRect)frame;
 - (void)tokenFieldTextDidChange:(TITokenField *)tokenField;
 - (void)tokenField:(TITokenField *)tokenField didFinishSearch:(NSArray *)matches;
 
+//FIXME: No more results table
 - (UITableViewCell *)tokenField:(TITokenField *)tokenField resultsTableView:(UITableView *)tableView cellForObject:(id)object;
 - (CGFloat)tokenField:(TITokenField *)tokenField resultsTableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath;
+
 @end
 
-@protocol TITokenDelegate <NSObject>
-@optional
-- (void)tokenGotFocus:(TIToken *)token;
-- (void)tokenLostFocus:(TIToken *)token;
-@end
+#pragma mark - TITokenFieldView
 
-//==========================================================
-// - TITokenFieldView
-//==========================================================
-
-@interface TITokenFieldView : UIScrollView <UITextFieldDelegate, UITableViewDelegate, UITableViewDataSource> {
-	
-	BOOL showAlreadyTokenized;
-	id <TITokenFieldViewDelegate> delegate;
-	
-	TITokenFieldShadow * textFieldShadow;
-	UIView * separator;
-	UITableView * resultsTable;
-	UIView * contentView;
-	
-	NSArray * sourceArray;
-	NSMutableArray * resultsArray;
-	
-	NSArray * tokenTitles;
-	
-	TITokenField * tokenField;
+@class TITokenField;
+@interface TITokenFieldView : UIScrollView <UITextFieldDelegate, TITokenDelegate> {
 }
 
 @property (nonatomic, assign) BOOL showAlreadyTokenized;
-@property (nonatomic, assign) id <TITokenFieldViewDelegate> delegate;
+@property (nonatomic, unsafe_unretained) id <TITokenFieldViewDelegate> delegate;
 
-@property (nonatomic, readonly) TITokenFieldShadow * textFieldShadow;
-@property (nonatomic, readonly) UIView * separator;
-@property (nonatomic, readonly) UITableView * resultsTable;
-@property (nonatomic, readonly) UIView * contentView;
+// Need to get rid of this
+@property (nonatomic, strong, readonly) TITokenField * tokenField;
 
-@property (nonatomic, copy) NSArray * sourceArray;
-@property (nonatomic, readonly, retain) NSArray * tokenTitles;
-@property (nonatomic, readonly) TITokenField * tokenField;
+@property (nonatomic, strong) UIPopoverController * popoverSelector;
+@property (nonatomic, assign) BOOL summarise;
+@property (nonatomic, strong) NSString * summaryText;
 
-- (void)updateContentSize;
-@end
+@property (nonatomic, strong) UIButton * addButton;
 
-//==========================================================
-// - TITokenField
-//==========================================================
+-(void) setPromptText:(NSString *)text;
+-(void) renderString;
+-(void) currentTokens:(NSSet*)tokens;
+-(void) updateContentSize;
+-(void) addToken:(NSString*)title;
 
-@interface TITokenField : UITextField <TITokenDelegate> {
+#pragma mark - Formerly Private
 
-	NSMutableArray * tokensArray;
-	CGPoint cursorLocation;
-	int numberOfLines;
-	
-	UIButton * addButton;
-	
-	id addButtonTarget;
-	SEL addButtonSelector;
-}
+-(void) processLeftoverText:(NSString *)text;
+-(void) tokenFieldResized:(TITokenField *)aTokenField;
 
-@property (nonatomic, retain) NSMutableArray * tokensArray;
-@property (nonatomic, readonly) int numberOfLines;
-@property (nonatomic, retain) UIButton * addButton;
-@property (nonatomic, assign) id addButtonTarget;
-@property (nonatomic, assign) SEL addButtonSelector;
+#pragma mark - Add Button
+-(void) addButtonAction:(id)control;
 
-- (void)addToken:(NSString *)title;
-- (void)removeToken:(TIToken *)token;
-
-- (CGFloat)layoutTokens;
-
-- (void)setAddButtonAction:(SEL)action target:(id)sender;
-- (void)setPromptText:(NSString *)aText;
-
-@end
-
-//==========================================================
-// - TIToken
-//==========================================================
-
-@interface TIToken : UIView {
-	
-	id <TITokenDelegate> delegate;
-	BOOL highlighted;
-	
-	NSString * title;
-	NSString * croppedTitle;
-	
-	UIColor * tintColor;
-}
-
-@property (nonatomic, assign) id <TITokenDelegate> delegate;
-@property (nonatomic, getter=isHighlighted) BOOL highlighted;
-@property (nonatomic, copy) NSString * title;
-@property (nonatomic, copy) NSString * croppedTitle;
-@property (nonatomic, retain) UIColor * tintColor;
-
-- (id)initWithTitle:(NSString *)aTitle;
+-(void) deselectAll;
 
 @end
