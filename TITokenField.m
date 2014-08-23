@@ -20,13 +20,13 @@
 {	
     if ((self = [super initWithFrame:frame]))
     {
-		self.borderStyle = UITextBorderStyleRoundedRect;
-        //self.backgroundColor = [UIColor grayColor]; //self.superview.backgroundColor;
+		//self.borderStyle = UITextBorderStyleRoundedRect;
+        self.backgroundColor = [UIColor grayColor]; //self.superview.backgroundColor;
 		self.textColor = [UIColor blackColor];
 		self.font = kSmallTokenFont;
 		self.autocorrectionType = UITextAutocorrectionTypeNo;
 		self.autocapitalizationType = UITextAutocapitalizationTypeNone;
-		self.textAlignment = UITextAlignmentLeft;
+		self.textAlignment = NSTextAlignmentLeft;
 		self.keyboardType = UIKeyboardTypeDefault;
 		self.returnKeyType = UIReturnKeyDefault;
 		self.clearsOnBeginEditing = NO;
@@ -36,6 +36,8 @@
 		// This is not something we want,
 		// so instead, we add a subview.
 		self.text = kTextEmpty;
+        self.contentVerticalAlignment = UIControlContentVerticalAlignmentTop;
+        
     }
 	
     return self;

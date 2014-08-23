@@ -49,12 +49,17 @@ CGFloat const kSeparatorHeight = 1;
     self.delaysContentTouches=NO;
     self.multipleTouchEnabled=NO;
     self.scrollEnabled=YES;
+    self.layer.borderWidth = 1.0;
+    self.layer.cornerRadius = 5.0;
+    self.layer.borderColor = [[UIColor grayColor] CGColor];
     
     showAlreadyTokenized = NO;
     summarise = NO;
-    
+
     // The tokenfield
     tokenField = [[TITokenField alloc] initWithFrame:CGRectMake(0, 0, frame.size.width, kTokenFieldHeight)];
+    //[tokenField sizeToFit];
+    //tokenField = [[TITokenField alloc] initWithFrame:CGRectMake(0, 0, frame.size.width, 30)];
     //tokenField.autoresizingMask = UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleBottomMargin | UIViewAutoresizingFlexibleTopMargin;
     [tokenField addTarget:self action:@selector(textFieldDidChange:) forControlEvents:UIControlEventEditingChanged];
     [tokenField setDelegate:self];
@@ -250,12 +255,37 @@ CGFloat const kSeparatorHeight = 1;
         id<TITokenFieldSearchDelegate> p = (id<TITokenFieldSearchDelegate>)popoverSelector.contentViewController;
         [p modifyPredicate:trimmedText];
     }
+    //----------
+    // If the start and end match, then there are no selected items
+    CGRect startRange = [tokenField caretRectForPosition:tokenField.selectedTextRange.start];
+    CGRect endRange = [tokenField caretRectForPosition:tokenField.selectedTextRange.end];
+
+    CGFloat absCursorPosition = tokenField.cursorLocation.x + endRange.origin.x;
+    CGFloat visibleLimit = self.contentOffset.x + self.frame.size.width;
+    
+#if DEBUG
+    NSLog(@"startRange (%f, %f, %f, %f)", startRange.origin.x, startRange.origin.y, startRange.size.width, startRange.size.height);
+    NSLog(@"endRange (%f, %f, %f, %f)", endRange.origin.x, endRange.origin.y, endRange.size.width, endRange.size.height);
+    NSLog(@"abs cursor position %f and the visible limit %f", absCursorPosition, visibleLimit);
+#endif
+    
+    
+    if(absCursorPosition > visibleLimit)
+    {
+        CGPoint point = CGPointMake(self.contentOffset.x+endRange.origin.x+60.0, 0);
+        [self setContentOffset:point animated:YES];
+    }
+    
 }
 
 // !!!: Tokens are created here!
 // !!!: Tokens are deleted here too!
 - (BOOL)textField:(UITextField *)textField shouldChangeCharactersInRange:(NSRange)range replacementString:(NSString *)string 
-{	
+{
+#if DEBUG
+    NSLog(@"Range (%d, %d)", range.length, range.location);
+#endif
+    
 	if ([string isEqualToString:@""] && [textField.text isEqualToString:kTextEmpty] && tokensArray.count)
     {
 		//When the backspace is pressed, we capture it, highlight the last token, and hide the cursor.
@@ -263,7 +293,7 @@ CGFloat const kSeparatorHeight = 1;
 		tok.highlighted = YES;
 		tokenField.text = kTextHidden;
 		[self updateHeight:NO];
-		
+	
 		return NO;
 	}
 	
@@ -300,7 +330,7 @@ CGFloat const kSeparatorHeight = 1;
         [self processLeftoverText:textField.text];
         return NO;
     }
-    
+
     CGPoint point = tokenField.cursorLocation;
     CGRect frame = textField.frame;
     CGRect pof = CGRectMake(point.x, point.y, 0.0, frame.size.height);
@@ -491,6 +521,19 @@ CGFloat const kSeparatorHeight = 1;
     
     tokenField.cursorLocation = CGPointMake(cursorLocationX, cursorLocationY);
     [self setContentSize:CGSizeMake(tokenField.frame.size.width, tokenField.frame.size.height)];
+
+    // TODO: This is very wrong.
+    //--------------------------------------------------
+   /*
+    CGRect s = [tokenField caretRectForPosition:tokenField.selectedTextRange.start];
+    CGRect e = [tokenField caretRectForPosition:tokenField.selectedTextRange.end];
+    
+    CGSize size = self.frame.size;
+    CGSize size2 = tokenField.frame.size;
+    
+    CGPoint point = CGPointMake(size2.width-size.width, 0);
+    [self setContentOffset:point animated:YES];
+*/
     return cl;
 }
 
