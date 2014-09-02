@@ -1,5 +1,18 @@
 # TITokenFieldView
+
 ### A control which mimics the To: field in Mail and Messages. Kinda like an NSTokenField.
+
+## iPad Modifications
+
+This is a heavily modified version if TITokenFieldView. I performed the modifications firstly as a learning exercise, and secondly to make it suit my needs. This branch was taken in 2012 and the modifications extensive enough that I have not bothered attempting to merge back changes from the original project.
+
+The following modifications were relevent in 2012 when I made the changes in 2012.
+
+### Modifications 
+- Add a TITokenFieldView to your view using Interface Builder
+- Rounded rectangle indicating the input is drawn on the scroll view and not the inner textfield
+- Tokens are drawn on a single line and the scroll view does not resize vertically
+- The view automatically scrolls to the right as you type
 
 ## Usage
 
